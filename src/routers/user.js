@@ -5,13 +5,15 @@ const bcrypt = require('bcryptjs');
 const generateToken = require('../middleware/generateToken');
 
 router.post('/users', async (req, res) => {
-    const hashedPassword = await bcrypt.hash(req.body.password, 8); 
-    const values = `uuid_generate_v4(), '${req.body.name}', '${req.body.email}', '${hashedPassword}'`;
-    client.query(`INSERT INTO users (user_uid, name, email, password) VALUES (${values})`, (err, result) => {
+    const user = req.body;
+    const hashedPassword = await bcrypt.hash(user.password, 8); 
+    const values = `uuid_generate_v4(), '${user.name}', '${user.email}', '${hashedPassword}'`;
+    client.query(`INSERT INTO users (user_uid, name, email, password) VALUES (${values})`, async (err, result) => {
         if (err) {
             return res.status(400).send(err);
         }        
-        res.status(201).send({ name: req.body.name });
+        const token = await generateToken(user);
+        res.status(201).send({ user, token });
     });
     client.end;
 });
@@ -40,7 +42,7 @@ router.post('/users/login', (req, res) => {
 router.get('/users', (req, res) => {
     client.query(`SELECT * FROM users`, (err, result) => {
         if (!err) {
-            res.send(result.rows[0]);
+            res.send(result.rows);
         }
     });
     client.end;
