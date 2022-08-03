@@ -51,7 +51,15 @@ router.post('/users/login', (req, res) => {
     });
 });
 
-router.post('/users/logoutAll', (req, res) => {
+router.post('/users/logout', auth, async (req, res) => {
+    await client.query(`DELETE FROM tokens WHERE token = '${req.token}'`).then(result => {
+        res.status(200).send();
+    }).catch(err => {
+        res.status(500).send();
+    });
+});
+
+router.post('/users/logoutAll', auth, (req, res) => {
     client.query(`DELETE FROM tokens WHERE user_uid = '${req.user.user_uid}'`, (err, result) => {
         if (err) {
             res.status(500).send(err);
