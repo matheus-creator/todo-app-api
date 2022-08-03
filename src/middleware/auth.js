@@ -4,7 +4,7 @@ const client = require('../connection');
 const auth = async (req, res, next) => {
     try {
         const token = req.header('Authorization').replace('Bearer ', '');
-        const decoded = jwt.verify(token, 'todo-app-auth');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const user_uid = decoded.id;
         let user;
 
