@@ -21,6 +21,10 @@ router.post('/users', async (req, res) => {
 
         const token = await generateToken(user_uid);
 
+        res.cookie('token', token, {
+            httpOnly: true,
+            //secure: true,
+        });
         res.status(201).send({ user, token });
     }).catch(err => {
         res.status(400).send(err);
@@ -46,10 +50,16 @@ router.post('/users/login', (req, res) => {
         }
 
         const token = await generateToken(user.user_uid);
+        res.cookie('token', token, {
+            httpOnly: true,
+            //secure: true,
+        });
         res.status(200).send({ user, token });
     });
     client.end;
 });
+
+// TODO: change this to work with cookies
 
 router.post('/users/logout', auth, async (req, res) => {
     await client.query(`DELETE FROM tokens WHERE token = '${req.token}'`).then(result => {
@@ -60,16 +70,16 @@ router.post('/users/logout', auth, async (req, res) => {
     client.end;
 });
 
-router.post('/users/logoutAll', auth, (req, res) => {
-    client.query(`DELETE FROM tokens WHERE user_uid = '${req.user.user_uid}'`, (err, result) => {
-        if (err) {
-            res.status(500).send(err);
-            console.log(err);
-        }
-        res.status(200).send();
-    });
-    client.end;
-});
+// router.post('/users/logoutAll', auth, (req, res) => {
+//     client.query(`DELETE FROM tokens WHERE user_uid = '${req.user.user_uid}'`, (err, result) => {
+//         if (err) {
+//             res.status(500).send(err);
+//             console.log(err);
+//         }
+//         res.status(200).send();
+//     });
+//     client.end;
+// });
 
 router.get('/users/me', auth, (req, res) => {
     res.status(200).send(req.user);
