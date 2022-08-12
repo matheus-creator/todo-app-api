@@ -7,8 +7,8 @@ router.post('/tasks', auth, async (req, res) => {
     const task = req.body;
     const values = `uuid_generate_v4(), '${task.title}', '${task.description}', '${task.completed}', '${req.user.user_uid}'`;
 
-    await client.query(`INSERT INTO tasks (task_uid, title, description, completed, user_uid) VALUES (${values})`).then(result => {
-        res.status(201).send(task);
+    await client.query(`INSERT INTO tasks (task_uid, title, description, completed, user_uid) VALUES (${values}) RETURNING *`).then(result => {
+        res.status(201).send(result.rows[0]);
     }).catch(err => {
         res.status(400).send(err);
     });
