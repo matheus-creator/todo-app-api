@@ -4,6 +4,8 @@ const client = require('../connection');
 const bcrypt = require('bcryptjs');
 const generateToken = require('../middleware/generateToken');
 const auth = require('../middleware/auth');
+const multer = require('multer');
+const sharp = require('sharp');
 
 router.post('/users', async (req, res) => {
     const user = req.body;
@@ -59,30 +61,55 @@ router.post('/users/login', (req, res) => {
     client.end;
 });
 
-// TODO: change this to work with cookies
-
-router.post('/users/logout', auth, async (req, res) => {
-    await client.query(`DELETE FROM tokens WHERE token = '${req.token}'`).then(result => {
-        res.status(200).send();
-    }).catch(err => {
-        res.status(500).send();
-    });
-    client.end;
+const upload = multer({
+    limits: {
+        fileSize: 1000000
+    },
+    fileFilter(req, file, cb) {
+        if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
+            return cb(new Error('Please upload an image'));
+        }
+        cb(undefined, true);
+    }
 });
 
-// router.post('/users/logoutAll', auth, (req, res) => {
-//     client.query(`DELETE FROM tokens WHERE user_uid = '${req.user.user_uid}'`, (err, result) => {
-//         if (err) {
-//             res.status(500).send(err);
-//             console.log(err);
-//         }
-//         res.status(200).send();
-//     });
-//     client.end;
-// });
+router.post('/users/me/avatar', auth, upload.single('avatar'), async (req, res) => {
+    const buffer = await sharp(req.file.buffer).resize({ width: 100, height: 100 }).png().toBuffer();
+    const dataObject = buffer.toJSON();
+    const dataJSON = JSON.stringify(dataObject);
+    
+    const user = req.user;
+
+    const values = `uuid_generate_v4(), '${user.user_uid}', '${dataJSON}'::json`;
+    
+    await client.query(`INSERT INTO avatars (avatar_uid, user_uid, buffer) VALUES (${values}) ON CONFLICT (user_uid) DO UPDATE SET buffer = EXCLUDED.buffer`).then((result) => {
+        res.status(201).send();
+    }).catch(err => {
+        res.status(400).send(err);
+    });
+    
+    client.end;
+}, (error, req, res, next) => {
+    console.log('failed');
+    res.status(400).send({ error: error.message });
+});
+
+router.post('/users/logout', auth, async (req, res) => {
+    res.clearCookie('token').status(200).send();
+});
 
 router.get('/users/me', auth, (req, res) => {
     res.status(200).send(req.user);
+});
+
+router.get('/users/me/avatar', auth, async (req, res) => {
+    await client.query(`SELECT buffer FROM avatars WHERE user_uid = '${req.user.user_uid}'`).then((result) => {
+        res.set('Content-Type', 'image/png');
+        const buffer = Buffer.from(JSON.stringify(result.rows[0]));
+        res.status(200).send(buffer);
+    }).catch(err => {
+        res.status(404).send(err);
+    });
 });
 
 router.patch('/users/me', auth, async (req, res) => {
@@ -127,7 +154,7 @@ router.delete('/users/me', auth, async (req, res) => {
     const user = req.user;
 
     await client.query(`DELETE FROM users WHERE user_uid = '${user.user_uid}'`).then(result => {
-        res.status(200).send(user);
+        res.status(200).clearCookie('token').send(user);
     }).catch(err => {
         res.status(500).send(err);
     });
