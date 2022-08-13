@@ -21,11 +21,10 @@ router.post('/users', async (req, res) => {
             throw new Error(err);
         });
 
-        const token = await generateToken(user_uid);
+        const token = await generateToken(user_uid, req.body.expirationTime);
 
         res.cookie('token', token, {
-            httpOnly: true,
-            //secure: true,
+            httpOnly: true
         });
         res.status(201).send({ user, token });
     }).catch(err => {
@@ -51,7 +50,7 @@ router.post('/users/login', (req, res) => {
             return res.status(400).send({ error: 'Unable to login.'});
         }
 
-        const token = await generateToken(user.user_uid);
+        const token = await generateToken(user.user_uid, req.body.expirationTime);
         res.cookie('token', token, {
             httpOnly: true,
             //secure: true,
@@ -82,15 +81,14 @@ router.post('/users/me/avatar', auth, upload.single('avatar'), async (req, res) 
 
     const values = `uuid_generate_v4(), '${user.user_uid}', '${dataJSON}'::json`;
     
-    await client.query(`INSERT INTO avatars (avatar_uid, user_uid, buffer) VALUES (${values}) ON CONFLICT (user_uid) DO UPDATE SET buffer = EXCLUDED.buffer`).then((result) => {
-        res.status(201).send();
+    await client.query(`INSERT INTO avatars (avatar_uid, user_uid, buffer) VALUES (${values}) ON CONFLICT (user_uid) DO UPDATE SET buffer = EXCLUDED.buffer RETURNING *`).then((result) => {
+        res.status(201).send(result);
     }).catch(err => {
         res.status(400).send(err);
     });
     
     client.end;
 }, (error, req, res, next) => {
-    console.log('failed');
     res.status(400).send({ error: error.message });
 });
 
