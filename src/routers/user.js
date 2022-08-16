@@ -161,36 +161,27 @@ router.get('/users/me/contributor', auth, async (req, res) => {
     client.end;
 });
 
-router.get('/users/hasContributor', auth, async (req, res) => {
-    const contributor_email = req.body.contributor_email;
-
-    await client.query(`SELECT contributor_email FROM users WHERE email = '${contributor_email}'`).then(result => {
-        if (result.rows[0].contributor_email === "") {
-            res.status(200).send({ message: "No contributor" });
-        }
-        else {
-            res.status(200).send({ message: "User already have a contributor" });
-        }
-    }).catch(err => {
-        res.status(400).send({ error: "User not found" });
-    });
-
-    client.end;
-});
-
 router.patch('/users/me/contributor', auth, async (req, res) => {
     const user_email = req.user.email;
     const contributor_email = req.body.contributor_email;
 
-    await client.query(`UPDATE users SET contributor_email = '${user_email}' WHERE email = '${contributor_email}'`).catch(err => {
-        return res.status(400).send();
-    });
+    try {
+        const result = await client.query(`SELECT * FROM users WHERE email = '${contributor_email}'`);
+        if (result.rows[0].contributor_email) {
+            return res.status(400).send({ error: "This user already have a contributor" });
+        }
+    } catch {
+        return res.status(404).send({ error: "This user doesn't exist" });
+    }
 
-    await client.query(`UPDATE users SET contributor_email = '${contributor_email}' WHERE email = '${user_email}'`).then(result => {
+    try {
+        await client.query(`UPDATE users SET contributor_email = '${user_email}' WHERE email = '${contributor_email}'`);
+        await client.query(`UPDATE users SET contributor_email = '${contributor_email}' WHERE email = '${user_email}'`);
         res.status(200).send();
-    }).catch(err => {
+    } catch {
         res.status(400).send();
-    });
+    }
+
 });
 
 router.delete('/users/me/contributor', auth, async (req, res) => {
@@ -212,8 +203,35 @@ router.delete('/users/me/contributor', auth, async (req, res) => {
     client.end;
 });
 
+router.delete('/users/me/avatar', auth, async (req, res) => {
+    const user = req.user;
+
+    await client.query(`DELETE FROM avatars WHERE user_uid = '${user.user_uid}'`).then(result => {
+        res.status(200).send();
+    }).catch(err => {
+        res.status(400).send();
+    });
+
+    client.end;
+});
+
 router.delete('/users/me', auth, async (req, res) => {
     const user = req.user;
+    let hasContributor;
+    let contributorUid;
+    
+    await client.query(`SELECT * FROM users WHERE email = '${user.contributor_email}'`).then(result => {
+        contributorUid = result.rows[0].user_uid;
+        hasContributor = true;
+    }).catch(err => {
+        hasContributor = false;
+    });
+
+    if (hasContributor) {
+        await client.query(`UPDATE users SET contributor_email = '' WHERE user_uid = '${contributorUid}'`).catch(err => {
+            return res.status(400).send();
+        });
+    }
 
     await client.query(`DELETE FROM users WHERE user_uid = '${user.user_uid}'`).then(result => {
         res.status(200).clearCookie('token').send(user);
