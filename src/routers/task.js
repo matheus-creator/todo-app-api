@@ -16,6 +16,27 @@ router.post('/tasks', auth, async (req, res) => {
     client.end;
 });
 
+router.post('/contributorTasks', auth, async (req, res) => {
+    const task = req.body;
+    let contributor_uid;
+
+    await client.query(`SELECT * FROM users WHERE email = '${req.user.contributor_email}'`).then(result => {
+        contributor_uid = result.rows[0].user_uid;
+    }).catch(err => {
+        return res.status(400).send(err);
+    });
+
+    const values = `uuid_generate_v4(), '${task.title}', '${task.description}', '${task.completed}', '${contributor_uid}'`;
+
+    await client.query(`INSERT INTO tasks (task_uid, title, description, completed, user_uid) VALUES (${values}) RETURNING *`).then(result => {
+        res.status(201).send(result.rows[0]);
+    }).catch(err => {
+        res.status(400).send(err);
+    });
+
+    client.end;
+});
+
 router.get('/tasks', auth, async (req, res) => {
     await client.query(`SELECT * FROM tasks WHERE user_uid = '${req.user.user_uid}'`).then(result => {
         res.status(200).send(result.rows);
@@ -26,12 +47,16 @@ router.get('/tasks', auth, async (req, res) => {
     client.end;
 });
 
-router.get('/tasks/:id', auth, async (req, res) => {
-    await client.query(`SELECT * FROM tasks WHERE user_uid = '${req.user.user_uid}' AND task_uid = '${req.params.id}'`).then(result => {
-        if (!result.rows[0]) {
-            return res.status(404).send();
-        }
-        res.status(200).send(result.rows[0]);
+router.get('/contributorTasks', auth, async (req, res) => {
+    let contributor_uid;
+    await client.query(`SELECT * FROM users WHERE email = '${req.user.contributor_email}'`).then(result => {
+        contributor_uid = result.rows[0].user_uid;
+    }).catch(err => {
+        return res.status(400).send(err);
+    });
+
+    await client.query(`SELECT * FROM tasks WHERE user_uid = '${contributor_uid}'`).then(result => {
+        res.status(200).send(result.rows);
     }).catch(err => {
         res.status(500).send(err);
     });
@@ -78,11 +103,38 @@ router.delete('/tasks/:id', auth, async (req, res) => {
         if (!result.rows[0]) {
             return res.status(404).send();
         }
-        res.status(200).send(result.rows[0]);
-
+        
         await client.query(`DELETE FROM tasks WHERE task_uid = '${req.params.id}'`).catch(err => {
             throw new Error(err);
         });
+
+        res.status(200).send(result.rows[0]);
+    }).catch(err => {
+        res.status(500).send(err);
+    });
+    
+    client.end;
+});
+
+router.delete('/contributorTasks/:id', auth, async (req, res) => {
+    let contributor_uid;
+
+    await client.query(`SELECT * FROM users WHERE email = '${req.user.contributor_email}'`).then(result => {
+        contributor_uid = result.rows[0].user_uid;
+    }).catch(err => {
+        return res.status(400).send(err);
+    });
+
+    await client.query(`SELECT * FROM tasks WHERE user_uid = '${contributor_uid}' AND task_uid = '${req.params.id}'`).then( async (result) => {
+        if (!result.rows[0]) {
+            return res.status(404).send();
+        }
+        
+        await client.query(`DELETE FROM tasks WHERE task_uid = '${req.params.id}'`).catch(err => {
+            throw new Error(err);
+        });
+
+        res.status(200).send(result.rows[0]);
     }).catch(err => {
         res.status(500).send(err);
     });

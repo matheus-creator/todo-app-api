@@ -10,9 +10,9 @@ const sharp = require('sharp');
 router.post('/users', async (req, res) => {
     const user = req.body;
     const hashedPassword = await bcrypt.hash(user.password, 8); 
-    const values = `uuid_generate_v4(), '${user.name}', '${user.email}', '${hashedPassword}'`;
+    const values = `uuid_generate_v4(), '${user.name}', '${user.email}', '${hashedPassword}', ''`;
     
-    await client.query(`INSERT INTO users (user_uid, name, email, password) VALUES (${values})`).then( async (result) => {
+    await client.query(`INSERT INTO users (user_uid, name, email, password, contributor_email) VALUES (${values})`).then( async (result) => {
         let user_uid;
         await client.query(`SELECT * FROM users WHERE email = '${user.email}'`).then(result => {
             user_uid = result.rows[0].user_uid;
@@ -145,6 +145,70 @@ router.patch('/users/me', auth, async (req, res) => {
         res.status(400).send(err);
     });
     
+    client.end;
+});
+
+router.get('/users/me/contributor', auth, async (req, res) => {
+    const contributor_email = req.user.contributor_email;
+
+    await client.query(`SELECT * FROM users WHERE email = '${contributor_email}'`).then(result => {
+        const contributor = result.rows[0];
+        res.status(200).send({ user_uid: contributor.user_uid, name: contributor.name, email: contributor.email });
+    }).catch(err => {
+        res.status(404).send();
+    });
+
+    client.end;
+});
+
+router.get('/users/hasContributor', auth, async (req, res) => {
+    const contributor_email = req.body.contributor_email;
+
+    await client.query(`SELECT contributor_email FROM users WHERE email = '${contributor_email}'`).then(result => {
+        if (result.rows[0].contributor_email === "") {
+            res.status(200).send({ message: "No contributor" });
+        }
+        else {
+            res.status(200).send({ message: "User already have a contributor" });
+        }
+    }).catch(err => {
+        res.status(400).send({ error: "User not found" });
+    });
+
+    client.end;
+});
+
+router.patch('/users/me/contributor', auth, async (req, res) => {
+    const user_email = req.user.email;
+    const contributor_email = req.body.contributor_email;
+
+    await client.query(`UPDATE users SET contributor_email = '${user_email}' WHERE email = '${contributor_email}'`).catch(err => {
+        return res.status(400).send();
+    });
+
+    await client.query(`UPDATE users SET contributor_email = '${contributor_email}' WHERE email = '${user_email}'`).then(result => {
+        res.status(200).send();
+    }).catch(err => {
+        res.status(400).send();
+    });
+});
+
+router.delete('/users/me/contributor', auth, async (req, res) => {
+    const user_email = req.user.email;
+    let contributor_email;
+
+    await client.query(`SELECT contributor_email FROM users WHERE email = '${user_email}'`).then(result => {
+        contributor_email = result.rows[0].contributor_email;
+    }).catch(err => {
+        return res.status(400).send();
+    });
+
+    await client.query(`UPDATE users SET contributor_email = '' WHERE email IN ('${user_email}', '${contributor_email}')`).then(result => {
+        res.status(200).send();
+    }).catch(err => {
+        res.status(400).send();
+    });
+
     client.end;
 });
 
