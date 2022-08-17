@@ -1,145 +1,123 @@
-const express = require('express');
+const express = require("express");
 const router = new express.Router();
-const client = require('../connection');
-const auth = require('../middleware/auth');
+const client = require("../connection");
+const auth = require("../middleware/auth");
 
-router.post('/tasks', auth, async (req, res) => {
+router.post("/tasks", auth, async (req, res) => {
     const task = req.body;
     const values = `uuid_generate_v4(), '${task.title}', '${task.description}', '${task.completed}', '${req.user.user_uid}'`;
 
-    await client.query(`INSERT INTO tasks (task_uid, title, description, completed, user_uid) VALUES (${values}) RETURNING *`).then(result => {
-        res.status(201).send(result.rows[0]);
-    }).catch(err => {
-        res.status(400).send(err);
-    });
+    try {
+        const result = await client.query(`INSERT INTO tasks (task_uid, title, description, completed, user_uid) VALUES (${values}) RETURNING *`);
 
-    client.end;
+        res.status(201).send(result.rows[0]);
+    } catch {
+        res.status(400).send();
+    }
 });
 
-router.post('/contributorTasks', auth, async (req, res) => {
+router.post("/contributorTasks", auth, async (req, res) => {
     const task = req.body;
-    let contributor_uid;
 
-    await client.query(`SELECT * FROM users WHERE email = '${req.user.contributor_email}'`).then(result => {
-        contributor_uid = result.rows[0].user_uid;
-    }).catch(err => {
-        return res.status(400).send(err);
-    });
+    try {
+        const result = await client.query(`SELECT * FROM users WHERE email = '${req.user.contributor_email}'`);
 
-    const values = `uuid_generate_v4(), '${task.title}', '${task.description}', '${task.completed}', '${contributor_uid}'`;
+        const contributor_uid = result.rows[0].user_uid;
+        const values = `uuid_generate_v4(), '${task.title}', '${task.description}', '${task.completed}', '${contributor_uid}'`;
 
-    await client.query(`INSERT INTO tasks (task_uid, title, description, completed, user_uid) VALUES (${values}) RETURNING *`).then(result => {
-        res.status(201).send(result.rows[0]);
-    }).catch(err => {
-        res.status(400).send(err);
-    });
+        const response = await client.query(`INSERT INTO tasks (task_uid, title, description, completed, user_uid) VALUES (${values}) RETURNING *`);
 
-    client.end;
+        res.status(201).send(response.rows[0]);
+    } catch {
+        res.status(400).send();
+    }
 });
 
-router.get('/tasks', auth, async (req, res) => {
-    await client.query(`SELECT * FROM tasks WHERE user_uid = '${req.user.user_uid}'`).then(result => {
+router.get("/tasks", auth, async (req, res) => {
+    try {
+        const result = await client.query(`SELECT * FROM tasks WHERE user_uid = '${req.user.user_uid}'`);
+
         res.status(200).send(result.rows);
-    }).catch(err => {
-        res.status(500).send(err);
-    });
-    
-    client.end;
+    } catch {
+        res.status(500).send();
+    }
 });
 
-router.get('/contributorTasks', auth, async (req, res) => {
-    let contributor_uid;
-    await client.query(`SELECT * FROM users WHERE email = '${req.user.contributor_email}'`).then(result => {
-        contributor_uid = result.rows[0].user_uid;
-    }).catch(err => {
-        return res.status(400).send(err);
-    });
+router.get("/contributorTasks", auth, async (req, res) => {
+    try {
+        const result = await client.query(`SELECT * FROM users WHERE email = '${req.user.contributor_email}'`);
+        const contributor_uid = result.rows[0].user_uid;
 
-    await client.query(`SELECT * FROM tasks WHERE user_uid = '${contributor_uid}'`).then(result => {
-        res.status(200).send(result.rows);
-    }).catch(err => {
-        res.status(500).send(err);
-    });
-    
-    client.end;
+        const response = await client.query(`SELECT * FROM tasks WHERE user_uid = '${contributor_uid}'`);
+
+        res.status(200).send(response.rows);
+    } catch {
+        res.status(400).send();
+    }
 });
 
-router.patch('/tasks/:id', auth, async (req, res) => {
+router.patch("/tasks/:id", auth, async (req, res) => {
     const updates = Object.keys(req.body);
-    const allowedUpdates = ['title', 'description', 'completed'];
-    const isValidOperation = updates.every(update => allowedUpdates.includes(update));
+    const allowedUpdates = ["title", "description", "completed"];
+    const isValidOperation = updates.every((update) => allowedUpdates.includes(update));
 
-    if (!isValidOperation) {
-        return res.status(400).send({ error: 'Invalid updates!' });
-    }
+    try {
+        if (!isValidOperation) {
+            throw new Error();
+        }
 
-    let task;
-    let values = '';
+        const result = await client.query(`SELECT * FROM tasks WHERE task_uid = '${req.params.id}'`);
+        let task = result.rows[0];
 
-    await client.query(`SELECT * FROM tasks WHERE task_uid = '${req.params.id}'`).then(result => {
-        task = result.rows[0];
-    }).catch(err => {
-        return res.status(404).send();
-    });
+        updates.forEach((update) => (task[update] = req.body[update]));
+        let values = "";
 
-    updates.forEach(update => task[update] = req.body[update]);
+        for (let i = 0; i < updates.length; i++) {
+            values = values.concat(`${updates[i]} = '${req.body[updates[i]]}', `);
+        }
+        values = values.substring(0, values.length - 2);
 
-    for (let i = 0; i < updates.length; i++) {
-        values = values.concat(`${updates[i]} = '${req.body[updates[i]]}', `);
-    }
-    values = values.substring(0, values.length - 2);
+        await client.query(`UPDATE tasks SET ${values} WHERE task_uid = '${req.params.id}'`);
 
-    await client.query(`UPDATE tasks SET ${values} WHERE task_uid = '${req.params.id}'`).then(result => {
         res.status(200).send(task);
-    }).catch(err => {
-        res.status(400).send(err);
-    });
-    
-    client.end;
+    } catch {
+        res.status(400).send();
+    }
 });
 
-router.delete('/tasks/:id', auth, async (req, res) => {
-    await client.query(`SELECT * FROM tasks WHERE user_uid = '${req.user.user_uid}' AND task_uid = '${req.params.id}'`).then( async (result) => {
+router.delete("/tasks/:id", auth, async (req, res) => {
+    try {
+        const result = await client.query(`SELECT * FROM tasks WHERE user_uid = '${req.user.user_uid}' AND task_uid = '${req.params.id}'`);
+
         if (!result.rows[0]) {
-            return res.status(404).send();
+            throw new Error();
         }
-        
-        await client.query(`DELETE FROM tasks WHERE task_uid = '${req.params.id}'`).catch(err => {
-            throw new Error(err);
-        });
+
+        await client.query(`DELETE FROM tasks WHERE task_uid = '${req.params.id}'`);
 
         res.status(200).send(result.rows[0]);
-    }).catch(err => {
-        res.status(500).send(err);
-    });
-    
-    client.end;
+    } catch {
+        res.status(400).send();
+    }
 });
 
-router.delete('/contributorTasks/:id', auth, async (req, res) => {
-    let contributor_uid;
+router.delete("/contributorTasks/:id", auth, async (req, res) => {
+    try {
+        const result = await client.query(`SELECT * FROM users WHERE email = '${req.user.contributor_email}'`);
+        const contributor_uid = result.rows[0].user_uid;
 
-    await client.query(`SELECT * FROM users WHERE email = '${req.user.contributor_email}'`).then(result => {
-        contributor_uid = result.rows[0].user_uid;
-    }).catch(err => {
-        return res.status(400).send(err);
-    });
+        const response = await client.query(`SELECT * FROM tasks WHERE user_uid = '${contributor_uid}' AND task_uid = '${req.params.id}'`);
 
-    await client.query(`SELECT * FROM tasks WHERE user_uid = '${contributor_uid}' AND task_uid = '${req.params.id}'`).then( async (result) => {
-        if (!result.rows[0]) {
-            return res.status(404).send();
+        if (!response.rows[0]) {
+            throw new Error();
         }
-        
-        await client.query(`DELETE FROM tasks WHERE task_uid = '${req.params.id}'`).catch(err => {
-            throw new Error(err);
-        });
 
-        res.status(200).send(result.rows[0]);
-    }).catch(err => {
-        res.status(500).send(err);
-    });
-    
-    client.end;
+        await client.query(`DELETE FROM tasks WHERE task_uid = '${req.params.id}'`);
+
+        res.status(200).send(response.rows[0]);
+    } catch {
+        res.status(400).send();
+    }
 });
 
 module.exports = router;
