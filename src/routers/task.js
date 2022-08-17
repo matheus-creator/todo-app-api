@@ -39,7 +39,7 @@ router.get("/tasks", auth, async (req, res) => {
 
         res.status(200).send(result.rows);
     } catch {
-        res.status(500).send();
+        res.status(400).send();
     }
 });
 

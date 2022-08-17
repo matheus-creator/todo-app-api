@@ -1,6 +1,6 @@
+const client = require('./connection');
 const express = require('express');
 const cookieParser = require('cookie-parser');
-const client = require('./connection');
 const cors = require('cors');
 const userRouter = require('./routers/user');
 const taskRouter = require('./routers/task');
@@ -16,6 +16,6 @@ app.use(cors({
 app.use(userRouter);
 app.use(taskRouter);
 
-app.listen(3001, () => console.log('Server is up on port 3001.'));
-
 client.connect();
+
+app.listen(3001, () => console.log('Server is up on port 3001.'));

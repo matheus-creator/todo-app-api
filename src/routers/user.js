@@ -7,8 +7,6 @@ const auth = require("../middleware/auth");
 const multer = require("multer");
 const sharp = require("sharp");
 
-// TODO: tratar erros na criação e edição das tasks, deploy
-
 router.post("/users", async (req, res) => {
     const user = req.body;
     const hashedPassword = await bcrypt.hash(user.password, 8);
