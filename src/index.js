@@ -6,6 +6,7 @@ const userRouter = require('./routers/user');
 const taskRouter = require('./routers/task');
 
 const app = express();
+const port = process.env.PORT;
 
 app.use(express.json());
 app.use(cookieParser());
@@ -18,4 +19,4 @@ app.use(taskRouter);
 
 client.connect();
 
-app.listen(3001, () => console.log('Server is up on port 3001.'));
+app.listen(port, () => console.log(`Server is up on port ${port}.`));
