@@ -21,9 +21,7 @@ router.post("/users", async (req, res) => {
         const token = await generateToken(user_uid, req.body.expirationTime);
 
         res.cookie("token", token, {
-            httpOnly: true,
-            secure: true,
-            sameSite: 'none'
+            httpOnly: true
         });
 
         res.status(201).send({ user, token });
@@ -50,9 +48,7 @@ router.post("/users/login", async (req, res) => {
         const token = await generateToken(user.user_uid, req.body.expirationTime);
 
         res.cookie("token", token, {
-            httpOnly: true,
-            secure: true,
-            sameSite: 'none'
+            httpOnly: true
         });
 
         res.status(200).send({ user, token });
