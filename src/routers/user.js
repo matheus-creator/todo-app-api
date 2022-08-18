@@ -22,7 +22,7 @@ router.post("/users", async (req, res) => {
 
         res.cookie("token", token, {
             httpOnly: true,
-            secure: true,
+            //secure: true,
             sameSite: 'none',
             domain: 'http://localhost:3000'
         });
@@ -52,7 +52,7 @@ router.post("/users/login", async (req, res) => {
 
         res.cookie("token", token, {
             httpOnly: true,
-            secure: true,
+            //secure: true,
             sameSite: 'none',
             domain: 'http://localhost:3000'
         });
